@@ -4,161 +4,172 @@
 <meta charset="utf-8">
 <title>Logo Weight Balancer</title>
 <style>
-  body   {font-family:sans-serif;max-width:46rem;margin:auto;padding:1.5rem;}
-  h2     {margin-top:0}
-  label  {display:block;margin:.5rem 0;}
-  input  {padding:.25rem;}
-  .dropzone {border:2px dashed #999;border-radius:.5rem;text-align:center;
-             padding:2rem;margin:1rem 0;min-height:120px;transition:.2s border-color}
-  .dropzone.hover{border-color:#007bff}
-  .preview {display:block;margin:auto;}
+  :root { --wall-gap:40px; }
+  body  {font-family:sans-serif;max-width:46rem;margin:auto;padding:1.5rem;}
+  h2    {margin-top:0}
+  #zone {border:2px dashed #999;border-radius:.5rem;text-align:center;
+         padding:2rem;margin:1rem 0;min-height:140px;transition:.2s border-color}
+  #zone.hover{border-color:#007bff}
+  label {display:inline-block;margin:.6rem .8rem .2rem 0}
+  input {padding:.25rem;width:5rem}
+  .wall {display:flex;flex-wrap:wrap;justify-content:center;align-items:center;
+         gap:var(--wall-gap);margin:1.5rem 0}
+  .wall img{display:block}
+
   table  {width:100%;border-collapse:collapse;margin-top:1.5rem}
   th,td  {border-bottom:1px solid #ddd;padding:.4rem .5rem;text-align:left;vertical-align:middle}
   th     {background:#fafafa}
-  #baseline-info{margin:.5rem 0 1rem;font-weight:bold}
 </style>
 </head>
 <body>
-<h2>Logo Weight Balancer <small>(drag images in)</small></h2>
+<h2>Logo Weight Balancer <small>(drag images here)</small></h2>
 
-<label>Standard height for all logos (px)
-  <input id="baseHeightInput" type="number" value="40" min="1">
+<div id="zone">
+  <strong>Drop images here (first = baseline)</strong><br>
+  <em>…or click and choose</em>
+</div>
+
+<label>Max Height (px)
+  <input id="maxHeightInput" type="number" value="40" min="1">
 </label>
 
-<div id="baseline-zone" class="dropzone">
-  <strong>Drop baseline (darkest) logo here</strong><br>
-  <em>…or click and choose</em>
-</div>
-<p id="baseline-info">Baseline not set.</p>
+<label>Gap (px)
+  <input id="gapInput" type="number" value="40" min="0">
+</label>
 
-<div id="other-zone" class="dropzone">
-  <strong>Drop other logo(s) here</strong><br>
-  <em>…or click and choose</em>
-</div>
+<div id="wall" class="wall"></div>
 
 <table id="results" style="display:none">
   <thead>
     <tr>
-      <th>Logo preview</th>
-      <th>Brightness&nbsp;%</th>
-      <th>Scale&nbsp;%</th>
-      <th>Final&nbsp;W&nbsp;×&nbsp;H&nbsp;(px)</th>
+      <th>Logo</th>
+      <th>Brightness %</th>
+      <th>Scale %</th>
+      <th>Final W × H (px)</th>
     </tr>
   </thead>
   <tbody></tbody>
 </table>
 
 <script>
-let baseline = null;   // {w, h, brightness}
+let idCounter = 0;
+const logos = [];            // every logo incl. baseline (index 0)
+const zone  = document.getElementById('zone');
 
-/* ----------  helpers  ---------- */
-function averageBrightness(img, scale = 1) {
-  const w = Math.round(img.width * scale);
-  const h = Math.round(img.height * scale);
-  const canvas = Object.assign(document.createElement('canvas'), {width: w, height: h});
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0, w, h);
-  const {data} = ctx.getImageData(0, 0, w, h);
-
-  let sum = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3];
-    sum += (alpha === 0 ? 255*3 : data[i] + data[i+1] + data[i+2]);
-  }
-  return (sum / (3 * w * h) / 255) * 100;   // brightness %
+function avgBrightness(img, downToH=100){
+  const scale=Math.min(downToH/img.height,1);
+  const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+  const c=Object.assign(document.createElement('canvas'),{width:w,height:h});
+  const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+  const {data}=ctx.getImageData(0,0,w,h);
+  let sum=0;
+  for(let i=0;i<data.length;i+=4)
+    sum+= (data[i+3]===0?255*3:data[i]+data[i+1]+data[i+2]);
+  return (sum/(3*w*h)/255)*100;
 }
 
-function handleFiles(files, isBaseline) {
-  [...files].forEach(file => {
-    if (!file.type.startsWith('image/')) return;
-    const img = new Image();
-    img.onload = () => isBaseline ? setBaseline(img, file) : processLogo(img, file);
-    img.src = URL.createObjectURL(file);
+function loadFiles(fileList){
+  [...fileList].forEach(file=>{
+    if(!file.type.startsWith('image/')) return;
+    const img=new Image();
+    img.onload=()=>addLogo(img,file.name);
+    img.src=URL.createObjectURL(file);
   });
 }
 
-/* ----------  baseline  ---------- */
-function setBaseline(img, file) {
-  const targetH = +document.getElementById('baseHeightInput').value || 40;
-  const scale   = targetH / img.height;
-
-  baseline = {
-    w: img.width * scale,
-    h: targetH,
-    brightness: averageBrightness(img, scale)
+function addLogo(img,name){
+  const logo={
+    id:idCounter++,
+    name, src:img.src,
+    w0:img.width, h0:img.height,
+    bright:avgBrightness(img)
   };
-
-  // show preview inside the drop-zone
-  const zone = document.getElementById('baseline-zone');
-  zone.innerHTML = `<img class="preview" src="${img.src}" style="height:${targetH}px">`;
-
-  document.getElementById('baseline-info').textContent =
-    `Baseline: ${file.name} – ${Math.round(baseline.w)} × ${baseline.h}px, ` +
-    `brightness ${baseline.brightness.toFixed(2)} %`;
-
-  // clear previous results
-  const tbody = document.querySelector('#results tbody');
-  tbody.innerHTML = '';
-  document.getElementById('results').style.display = 'none';
+  logos.push(logo);
+  updateAll();
 }
 
-/* ----------  other logos  ---------- */
-function processLogo(img, file) {
-  if (!baseline) { alert('Drop a baseline logo first.'); return; }
+function updateAll(){
+  if(!logos.length) return;
 
-  const targetH = baseline.h;                        // common height
-  const scaleToH = targetH / img.height;
-  const scaledW  = img.width * scaleToH;
-  const brightness = averageBrightness(img, scaleToH);
+  const baseline = logos[0];                          // first added
+  const areaBase = baseline.w0 * baseline.h0;
+  const bBase    = baseline.bright/100;
 
-  const areaBase = baseline.w * baseline.h;
-  const areaLogo = scaledW   * targetH;
+  // weight-balance relative sizes
+  logos.forEach((l,i)=>{
+    if(i===0){
+      l.relScale=1; l.preW=l.w0; l.preH=l.h0; return;
+    }
+    const scaleToH = baseline.h0 / l.h0;
+    const areaLogo = l.w0 * scaleToH * baseline.h0;
+    const s = Math.sqrt((1-bBase)*areaBase / ((1-l.bright/100)*areaLogo));
+    l.relScale = s * scaleToH;
+    l.preW = l.w0 * l.relScale;
+    l.preH = l.h0 * l.relScale;
+  });
 
-  const s = Math.sqrt((1 - baseline.brightness/100) * areaBase /
-                      ((1 - brightness/100)          * areaLogo));
+  // global scale to max-height
+  const maxPreH = Math.max(...logos.map(l=>l.preH));
+  const maxH = +maxHeightInput.value || 40;
+  const g = maxH / maxPreH;
 
-  const finalW = Math.round(scaledW * s);
-  const finalH = (targetH * s).toFixed(1);
+  logos.forEach(l=>{
+    l.finalW = Math.round(l.preW * g);
+    l.finalH = (l.preH * g).toFixed(1);
+    l.scalePct = l.finalH / l.h0 * 100;
+  });
 
-  addRow(img.src, brightness, s, finalW, finalH);
+  // stable sort: height desc, then id
+  const sorted = [...logos].sort((a,b)=>{
+    const d = b.finalH - a.finalH;
+    return d?d:a.id-b.id;
+  });
+
+  renderTable(sorted);
+  renderWall(sorted);
 }
 
-function addRow(src, bright, scale, w, h) {
-  const tbody = document.querySelector('#results tbody');
-  const row = tbody.insertRow();
-  row.innerHTML =
-    `<td><img src="${src}" style="height:${h}px"></td>` +
-    `<td>${bright.toFixed(2)}</td>` +
-    `<td>${(scale*100).toFixed(1)}</td>` +
-    `<td>${w} × ${h}</td>`;
-  document.getElementById('results').style.display = '';
+function renderTable(list){
+  const tbody=document.querySelector('#results tbody');
+  tbody.innerHTML='';
+  list.forEach(l=>{
+    const r=tbody.insertRow();
+    r.innerHTML=`<td><img src="${l.src}" style="height:${l.finalH}px;width:${l.finalW}px"></td>
+                 <td>${l.bright.toFixed(2)}</td>
+                 <td>${l.scalePct.toFixed(1)}</td>
+                 <td>${l.finalW} × ${l.finalH}</td>`;
+  });
+  document.getElementById('results').style.display='';
 }
 
-/* ----------  drag-and-drop plumbing  ---------- */
-function setupDropzone(id, isBaseline) {
-  const zone = document.getElementById(id);
-
-  ['dragenter','dragover'].forEach(evt =>
-    zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.add('hover'); })
-  );
-  ['dragleave','drop'].forEach(evt =>
-    zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.remove('hover'); })
-  );
-  zone.addEventListener('drop', e => handleFiles(e.dataTransfer.files, isBaseline));
-
-  // click-to-open fallback
-  zone.addEventListener('click', () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    if (!isBaseline) input.multiple = true;
-    input.accept = 'image/*';
-    input.onchange = () => handleFiles(input.files, isBaseline);
-    input.click();
+function renderWall(list){
+  const wall=document.getElementById('wall');
+  wall.innerHTML='';
+  list.forEach(l=>{
+    const img=document.createElement('img');
+    img.src=l.src;
+    img.style.height=`${l.finalH}px`;
+    img.style.width =`${l.finalW}px`;
+    wall.appendChild(img);
   });
 }
 
-setupDropzone('baseline-zone', true);
-setupDropzone('other-zone',     false);
+/* drag-and-drop + click */
+['dragenter','dragover'].forEach(e=>zone.addEventListener(e,ev=>{ev.preventDefault();zone.classList.add('hover');}));
+['dragleave','drop'].forEach(e=>zone.addEventListener(e,ev=>{ev.preventDefault();zone.classList.remove('hover');}));
+zone.addEventListener('drop',e=>loadFiles(e.dataTransfer.files));
+zone.addEventListener('click',()=>{
+  const inp=document.createElement('input');
+  inp.type='file';inp.multiple=true;inp.accept='image/*';
+  inp.onchange=()=>loadFiles(inp.files);
+  inp.click();
+});
+
+/* inputs */
+maxHeightInput.addEventListener('input',updateAll);
+gapInput.addEventListener('input',e=>{
+  document.documentElement.style.setProperty('--wall-gap',`${e.target.value||0}px`);
+});
 </script>
 </body>
 </html>
