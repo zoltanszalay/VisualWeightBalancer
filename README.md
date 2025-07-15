@@ -1,34 +1,19 @@
-# Balancing Logo Visual Weight in Three Quick Steps
+# Logo-Weight Balancer
 
-This method helps you achieve optically balanced logo sizes, especially when displaying multiple logos (e.g. in client carousels or partner sections).
-
----
-
-## 1. Level-set the Artwork
-
-- Convert every logo to **flat black on a white background** (avoid anti-aliasing halos).
-- Scale all logos to the **same nominal height** so you begin with comparable footprints.
+Balance a batch of brand marks so they *feel* the same visual weight—no more “one logo looks louder than the others”.  
+Drag a pile of PNG/JPG/SVG files into the browser, tweak a couple of knobs, and export perfectly sized assets plus a demo snippet.
 
 ---
 
-## 2. Measure Each Logo’s Darkness
+## ✨ Features
 
-In Photoshop:
-
-- Select ➜ **All**
-- Go to ➜ **Filter → Blur → Average**
-- Read the **single RGB value** in the **Info** panel.
-- Convert that to **brightness** on a 0–1 scale  
-  _(e.g. 62% brightness = 0.62)_
-- Then compute:  
-  **darkness** = `1 – brightness`
-
----
-
-## 3. Compute the Scale Factors
-
-Pick the **darkest logo** as your baseline (`scale = 1`).  
-For every other logo, use the formula:
-
-```math
-s = √[ (1 - B₀) × W₀ × H₀ ÷ (1 - B) × W × H ]
+| ✓ | What it does |
+|---|--------------|
+| Drag-and-drop (or click-to-pick) unlimited logo files |
+| **Visual-weight math**   ·  `weight = ink-coverage × area`<br>Dark-mode switch ≙ ¯inverse ink logic |
+| Automatic **light ↔ dark theme** (first logo decides—override anytime) |
+| Live wall preview with adjustable **gap** and **max height** |
+| Sort by Added · Filename · Height · Width · Random |
+| **Copy specs** → clipboard (`filename,width,height`) |
+| **Download ZIP** → each raster logo as a crisp **@2× PNG**, each SVG resized with new width/height |
+| Works offline—one HTML file + [JSZip CDN] |
