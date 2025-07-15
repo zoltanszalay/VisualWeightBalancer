@@ -1,0 +1,115 @@
+/* ───────── palette (pure black / white + alpha) ───────── */
+:root{ --ink:0,0,0; --wall-gap:40px; }
+body.dark{ --ink:255,255,255; }
+
+*{box-sizing:border-box;font-family:sans-serif;font-size:14px;}
+
+body{
+  margin:0;
+  padding:1.5rem;
+  background:#fff;
+  color:rgb(var(--ink));
+}
+body.dark{background:#111;}
+
+/* ───────── controls ───────── */
+.controls{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:.8rem;
+  margin:1rem 0;
+}
+
+.controls label{
+  display:flex;
+  align-items:center;
+  gap:.4rem;
+  user-select:none;
+}
+
+/* universal sizing */
+.controls input,
+.controls button{
+  height:32px;
+  border-radius:4px;
+  font:inherit;
+}
+
+/* number inputs */
+.controls input[type=number]{
+  width:4rem;
+  padding:0 .5rem;
+  background:transparent;              /* no fill */
+  border:1px solid rgba(var(--ink),.3);
+  color:rgba(var(--ink));
+}
+
+/* colour swatch */
+.controls input[type=color]{
+  width:32px;
+  height:32px;
+  padding:0;
+  border:none;
+  border-radius:4px;
+}
+
+/* buttons */
+.controls button{
+  padding:0 0.8rem;
+  background:rgba(var(--ink),.1);     /* stronger bg */
+  border:none;                         /* no border */
+  color:inherit;
+  cursor:pointer;
+}
+.controls button:hover{
+  background:rgba(var(--ink),.2);
+}
+
+.actions{margin-left:auto;display:flex;gap:.6rem;}
+.sortCaps{width:.8rem;display:inline-block;}
+
+/* ───────── wall ───────── */
+.wall{
+  display:none;
+  flex-wrap:wrap;
+  justify-content:center;
+  align-items:center;
+  gap:var(--wall-gap);
+  padding:calc(var(--wall-gap)*2);
+}
+.wall img{display:block;}
+
+/* ───────── table ───────── */
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:1rem;
+  display:none;
+}
+
+th,td{
+  border-bottom:1px solid rgba(var(--ink),.18);
+  padding:.4rem .5rem;
+  vertical-align:middle;
+  text-align:left;
+  height:var(--row-height,auto);       /* uniform row height set via JS */
+}
+
+th{
+  background:rgba(var(--ink),.05);
+}
+
+/* ───────── drop-zone ───────── */
+#zone{
+  border:1px dashed rgba(var(--ink),.4);
+  border-radius:8px;
+  height:100px;
+  margin-top:2rem;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:border-color .2s;
+}
+#zone.hover{border-color:#007bff;}
+body.dark #zone.hover{border-color:#0af;}

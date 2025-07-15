@@ -1,281 +1,65 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Logo Weight Balancer</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<style>
-/* base */
-*{font-family:sans-serif;font-size:14px;box-sizing:border-box;}
-:root{--wall-gap:40px;}
-body{margin:0;padding:1.5rem;background:#fff;color:#111;}
-body.dark{background:#111;color:#eee;}
-/* controls */
-.controls{display:flex;flex-wrap:wrap;align-items:center;gap:.8rem;margin:1rem 0;}
-.controls label{display:flex;align-items:center;gap:.4rem;}
-.controls input[type=number]{width:5rem;padding:.25rem;}
-.controls input[type=color]{padding:0;width:2rem;height:1.6rem;border:none;}
-.controls button{padding:.25rem .7rem;cursor:pointer;border:1px solid #bbb;background:#f5f5f5;}
-.actions{margin-left:auto;display:flex;gap:.6rem;}
-.sortCaps{width:.8rem}
-/* dark-theme form tweaks */
-body.dark .controls input,
-body.dark .controls button{background:#1e1e1e;border:1px solid #444;color:#eee;}
-/* wall */
-.wall{display:none;flex-wrap:wrap;justify-content:center;align-items:center;
-      gap:var(--wall-gap);padding:calc(var(--wall-gap)*2);}
-.wall img{display:block;}
-/* table */
-table{width:100%;border-collapse:collapse;margin-top:1rem;display:none;}
-th,td{border-bottom:1px solid #ddd;padding:.4rem .5rem;text-align:left;vertical-align:middle;}
-th{background:#fafafa;}
-tr.highlight{background:#f5f5f5;}
-body.dark th{background:#222;}
-body.dark tr.highlight{background:#1b1b1b;}
-body.dark th,body.dark td{border-bottom:1px solid #333;}   /* muted borders */
-/* drop zone */
-#zone{border:2px dashed #999;border-radius:8px;height:100px;margin-top:2rem;
-      display:flex;align-items:center;justify-content:center;transition:border-color .2s;}
-#zone.hover{border-color:#007bff;}
-body.dark #zone{border-color:#777;}
-body.dark #zone.hover{border-color:#0af;}
-</style>
+  <meta charset="utf-8" />
+  <title>Logo-Weight Balancer</title>
+
+  <!-- libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- assets -->
+  <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body>
+  <h2 style="margin:0;">Logo-Weight Balancer</h2>
 
-<h2 style="margin:0;">Logo Weight Balancer</h2>
+  <!-- CONTROLS -->
+  <div class="controls">
+    <label>Max Height <input id="maxH" type="number" value="40" min="1" /></label>
+    <label>Gap <input id="gap" type="number" value="40" min="0" /></label>
 
-<!-- controls -->
-<div class="controls">
-  <label>Max&nbsp;H&nbsp;<input id="maxH" type="number" value="40" min="1"></label>
-  <label>Gap&nbsp;<input id="gap" type="number" value="40" min="0"></label>
+    <label><input id="themeToggle" type="checkbox" /> Dark mode</label>
 
-  <label><input id="themeToggle" type="checkbox"> Dark</label>
-  <label>BG <input id="bgPicker" type="color" value="#ffffff"></label>
+    <!-- colour swatch comes first, label after -->
+    <label class="bgLabel">
+      <input id="bgPicker" type="color" value="#ffffff" />
+      Background
+    </label>
 
-  <span class="sortCaps"></span>
-  <span>Sort:</span>
-  <button data-s="added">Added</button>
-  <button data-s="filename">Filename</button>
-  <button data-s="height">Height</button>
-  <button data-s="width">Width</button>
-  <button data-s="random">Random</button>
-  <span class="sortCaps"></span>
+    <span class="sortCaps"></span>
+    <span>Sort by</span>
+    <button data-s="added">Added</button>
+    <button data-s="filename">Filename</button>
+    <button data-s="height">Height</button>
+    <button data-s="width">Width</button>
+    <button data-s="random">Random</button>
+    <span class="sortCaps"></span>
 
-  <div class="actions">
-    <button id="copyBtn">Copy specs</button>
-    <button id="zipBtn">Download ZIP</button>
+    <div class="actions">
+      <button id="copyBtn">Copy specs</button>
+      <button id="zipBtn">Download ZIP</button>
+    </div>
   </div>
-</div>
 
-<div id="wall" class="wall"></div>
+  <!-- PREVIEW WALL + TABLE -->
+  <div id="wall" class="wall"></div>
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>Logo</th>
+        <th>Filename</th>
+        <th>Brightness %</th>
+        <th>Scale %</th>
+        <th>W×H</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<table id="tbl">
-  <thead><tr><th>Logo</th><th>Filename</th><th>Bright %</th><th>Scale %</th><th>W×H</th></tr></thead>
-  <tbody></tbody>
-</table>
+  <!-- DROP ZONE -->
+  <div id="zone"><span>Drop logos here or click to browse (SVG, PNG)</span></div>
 
-<!-- drop-zone is last -->
-<div id="zone"><span>Drop logos here or click</span></div>
-
-
-  <script>
-    /* ——— DOM shortcuts ——— */
-    const wall       = document.getElementById('wall');
-    const tbl        = document.getElementById('tbl');
-    const tbody      = tbl.querySelector('tbody');
-    const zone       = document.getElementById('zone');
-    const themeToggle= document.getElementById('themeToggle');
-    const bgPicker   = document.getElementById('bgPicker');
-    const maxHInput  = document.getElementById('maxH');
-    const gapInput   = document.getElementById('gap');
-    const copyBtn    = document.getElementById('copyBtn');
-    const zipBtn     = document.getElementById('zipBtn');
-    
-    /* ——— state ——— */
-    let logos=[], uid=0, sortMode='height', autoTheme=true, theme='light';
-    
-    /* ——— upload plumbing ——— */
-    ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.add('hover');}));
-    ['dragleave','drop'   ].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();zone.classList.remove('hover');}));
-    zone.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
-    zone.addEventListener('click',()=>{const i=document.createElement('input');
-      i.type='file';i.multiple=true;i.accept='image/*,image/svg+xml';
-      i.onchange=()=>handleFiles(i.files);i.click();
-    });
-    function handleFiles(fs){
-      [...fs].forEach(f=>{
-        if(!f.type.startsWith('image/')) return;
-        const img=new Image();
-        img.onload=()=>addLogo(f,img);
-        img.src=URL.createObjectURL(f);
-      });
-    }
-    
-    /* ——— brightness helper ——— */
-    function avgBrightness(img,bg=255,downH=100){
-      const scale=Math.min(downH/img.height,1),
-            w=Math.round(img.width*scale),
-            h=Math.round(img.height*scale),
-            c=Object.assign(document.createElement('canvas'),{width:w,height:h}),
-            ctx=c.getContext('2d');
-      ctx.drawImage(img,0,0,w,h);
-      const d=ctx.getImageData(0,0,w,h).data;
-      let sum=0;
-      for(let i=0;i<d.length;i+=4)
-        sum+= d[i+3]===0 ? bg*3 : d[i]+d[i+1]+d[i+2];
-      return sum/(3*w*h)/255*100;
-    }
-    
-    /* ——— push logo & theme guess ——— */
-    function addLogo(file,img){
-      logos.push({
-        id  : uid++,
-        file, img,
-        name: file.name,
-        type: file.type,
-        w0  : img.width,
-        h0  : img.height,
-        bright: 0,
-        inverse: false
-      });
-      if(autoTheme && logos.length===1){
-        const firstBright=avgBrightness(img,255);
-        applyTheme(firstBright>70?'dark':'light',false);
-        themeToggle.checked = (theme==='dark');           // make it visible on toggle
-      }
-      refresh();
-    }
-    
-    /* ——— theme / bg ——— */
-    function applyTheme(t,updateToggle=true){
-  theme = t;
-  document.body.classList.toggle('dark', t === 'dark');
-  if (updateToggle) themeToggle.checked = (t === 'dark');
-
-  /* keep picker in sync */
-  bgPicker.value = t === 'dark' ? '#000000' : '#ffffff';
-  document.body.style.backgroundColor = bgPicker.value;
-
-  refresh();
-}
-    themeToggle.onchange=e=>{autoTheme=false;applyTheme(e.target.checked?'dark':'light',false);};
-    bgPicker.oninput=e=>{document.body.style.backgroundColor=e.target.value;};
-    
-    /* ——— controls ——— */
-    maxHInput.oninput=gapInput.oninput=e=>{
-      if(e.target===gapInput) document.documentElement.style.setProperty('--wall-gap',`${gapInput.value}px`);
-      refresh();
-    };
-    document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{sortMode=b.dataset.s;refresh();});
-    
-    /* ——— main refresh ——— */
-    function refresh(){
-      if(!logos.length){ wall.style.display=tbl.style.display='none'; return; }
-      wall.style.display='flex';
-      tbl.style.display ='table';                   // rows will now be visible
-    
-      /* measure brightness against fixed white/black only */
-      const bg = theme==='dark' ? 0 : 255;
-      logos.forEach(l=>l.bright = avgBrightness(l.img,bg));
-    
-      /* weight balance vs baseline */
-      const base = logos[0];
-      const A0   = base.w0*base.h0;
-      const d0   = 1 - base.bright/100;
-    
-      logos.forEach((l,i)=>{
-        if(i===0){ l.preW=l.w0; l.preH=l.h0; return; }
-        const sh  = base.h0 / l.h0;
-        const A   = l.w0 * sh * base.h0;
-        const d   = 1 - l.bright/100;
-        const rel = Math.sqrt(d0*A0 / (d*A)) * sh;
-        l.preW = l.w0 * rel;
-        l.preH = l.h0 * rel;
-      });
-    
-      /* scale so tallest == maxH */
-      const maxPreH = Math.max(...logos.map(l=>l.preH));
-      const factor  = (+maxHInput.value || 40) / maxPreH;
-      logos.forEach(l=>{
-        l.fW    = Math.round(l.preW * factor);
-        l.fH    = +(l.preH * factor).toFixed(1);
-        l.scale = l.fH / l.h0 * 100;
-      });
-    
-      drawUI();
-    }
-    
-    /* ——— draw wall + table ——— */
-    function drawUI(){
-      /* sort snapshot */
-      const list = [...logos].sort((a,b)=>{
-        if(sortMode==='added'   ) return a.id-b.id;
-        if(sortMode==='filename') return a.name.localeCompare(b.name,'en',{sensitivity:'base'});
-        if(sortMode==='height'  ) return b.fH-a.fH || a.id-b.id;
-        if(sortMode==='width'   ) return b.fW-a.fW || a.id-b.id;
-        return Math.random()-.5;          /* random */
-      });
-    
-      /* wall */
-      wall.innerHTML='';
-      list.forEach(l=>{
-        const img=new Image();
-        img.src=l.img.src;
-        img.style.width =`${l.fW}px`;
-        img.style.height=`${l.fH}px`;
-        wall.appendChild(img);
-      });
-    
-      /* table */
-      tbody.innerHTML='';
-      const widest  = Math.max(...list.map(l=>l.fW));
-      const tallest = Math.max(...list.map(l=>l.fH));
-      list.forEach(l=>{
-        const row=tbody.insertRow();
-        if(l.fW===widest||l.fH===tallest) row.classList.add('highlight');
-        row.innerHTML=
-          `<td><img src="${l.img.src}" style="width:${l.fW}px;height:${l.fH}px"></td>
-           <td>${l.name}</td>
-           <td>${l.bright.toFixed(1)}</td>
-           <td>${l.scale.toFixed(1)}</td>
-           <td>${l.fW===widest?'<strong>'+l.fW+'</strong>':l.fW} × ${l.fH===tallest?'<strong>'+l.fH+'</strong>':l.fH}</td>`;
-      });
-    }
-    
-    /* ——— copy specs ——— */
-    copyBtn.onclick=()=>{
-      const csv=[...logos].map(l=>`${l.name},${l.fW},${l.fH}`).join('\n');
-      navigator.clipboard.writeText(csv);
-      copyBtn.textContent='Copied!';
-      setTimeout(()=>copyBtn.textContent='Copy specs',1800);
-    };
-    
-    /* ——— ZIP download (unchanged) ——— */
-    async function png2x(img,w,h){
-      const c=Object.assign(document.createElement('canvas'),{width:w*2,height:h*2}),
-            x=c.getContext('2d',{alpha:true});
-      x.imageSmoothingQuality='high';
-      x.drawImage(img,0,0,w*2,h*2);
-      return new Promise(r=>c.toBlob(r,'image/png'));
-    }
-    zipBtn.onclick=async()=>{
-      if(!logos.length) return;
-      const zip=new JSZip();
-      const sorted=[...logos];
-      for(const l of sorted){
-        if(/svg/.test(l.type)){
-          const raw=await l.file.text();
-          zip.file(l.name, raw.replace(/<svg([^>]*)>/,
-            (_,a)=>`<svg${a.replace(/\s(width|height)="[^"]*"/g,'')} width="${l.fW}" height="${l.fH}">`));
-        }else{
-          zip.file(l.name.replace(/\.[^.]+$/,'')+'@2x.png', await png2x(l.img,l.fW,l.fH));
-        }
-      }
-      const blob=await zip.generateAsync({type:'blob'}),
-            url =URL.createObjectURL(blob);
-      Object.assign(document.createElement('a'),{href:url,download:'balanced-logos.zip'}).click();
-      URL.revokeObjectURL(url);
-    };
-    </script>
-    </body></html>
+  <script src="script.js"></script>
+</body>
+</html>
