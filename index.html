@@ -5,35 +5,38 @@
 <title>Logo Weight Balancer</title>
 <style>
   :root { --wall-gap:40px; }
-  body  {font-family:sans-serif;max-width:46rem;margin:auto;padding:1.5rem;}
+  body  {font-family:sans-serif;font-size:14px;margin:auto;padding:1.5rem;}
   h2    {margin-top:0}
+
   #zone {border:2px dashed #999;border-radius:.5rem;text-align:center;
-         padding:2rem;margin:1rem 0;min-height:140px;transition:.2s border-color}
+         height:100px;display:flex;align-items:center;justify-content:center;
+         transition:.2s border-color}
   #zone.hover{border-color:#007bff}
+
   label {display:inline-block;margin:.6rem .8rem .2rem 0}
-  input {padding:.25rem;width:5rem}
+  input {padding:.25rem;width:5rem;font-size:14px}
+
   .wall {display:flex;flex-wrap:wrap;justify-content:center;align-items:center;
-         gap:var(--wall-gap);margin:1.5rem 0}
+         gap:var(--wall-gap);padding:calc(var(--wall-gap)*2)}
   .wall img{display:block}
 
   table  {width:100%;border-collapse:collapse;margin-top:1.5rem}
-  th,td  {border-bottom:1px solid #ddd;padding:.4rem .5rem;text-align:left;vertical-align:middle}
+  th,td  {border-bottom:1px solid #ddd;padding:.4rem .5rem;text-align:left;vertical-align:middle;font-size:14px}
   th     {background:#fafafa}
 </style>
 </head>
 <body>
-<h2>Logo Weight Balancer <small>(drag images here)</small></h2>
+<h2>Logo Weight Balancer</h2>
 
 <div id="zone">
-  <strong>Drop images here (first = baseline)</strong><br>
-  <em>…or click and choose</em>
+  <span>Drop logos here or click to choose</span>
 </div>
 
-<label>Max Height (px)
+<label>Max&nbsp;Height&nbsp;(px)
   <input id="maxHeightInput" type="number" value="40" min="1">
 </label>
 
-<label>Gap (px)
+<label>Gap&nbsp;(px)
   <input id="gapInput" type="number" value="40" min="0">
 </label>
 
@@ -43,9 +46,9 @@
   <thead>
     <tr>
       <th>Logo</th>
-      <th>Brightness %</th>
-      <th>Scale %</th>
-      <th>Final W × H (px)</th>
+      <th>Brightness&nbsp;%</th>
+      <th>Scale&nbsp;%</th>
+      <th>Final&nbsp;W&nbsp;×&nbsp;H&nbsp;(px)</th>
     </tr>
   </thead>
   <tbody></tbody>
@@ -53,23 +56,23 @@
 
 <script>
 let idCounter = 0;
-const logos = [];            // every logo incl. baseline (index 0)
+const logos = [];                            // first one is baseline
 const zone  = document.getElementById('zone');
 
 function avgBrightness(img, downToH=100){
-  const scale=Math.min(downToH/img.height,1);
-  const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
-  const c=Object.assign(document.createElement('canvas'),{width:w,height:h});
+  const s = Math.min(downToH/img.height,1);
+  const w = Math.round(img.width*s), h = Math.round(img.height*s);
+  const c = Object.assign(document.createElement('canvas'),{width:w,height:h});
   const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
   const {data}=ctx.getImageData(0,0,w,h);
   let sum=0;
   for(let i=0;i<data.length;i+=4)
-    sum+= (data[i+3]===0?255*3:data[i]+data[i+1]+data[i+2]);
+    sum += (data[i+3]===0 ? 255*3 : data[i]+data[i+1]+data[i+2]);
   return (sum/(3*w*h)/255)*100;
 }
 
-function loadFiles(fileList){
-  [...fileList].forEach(file=>{
+function loadFiles(files){
+  [...files].forEach(file=>{
     if(!file.type.startsWith('image/')) return;
     const img=new Image();
     img.onload=()=>addLogo(img,file.name);
@@ -78,37 +81,30 @@ function loadFiles(fileList){
 }
 
 function addLogo(img,name){
-  const logo={
-    id:idCounter++,
-    name, src:img.src,
+  logos.push({
+    id:idCounter++, name, src:img.src,
     w0:img.width, h0:img.height,
     bright:avgBrightness(img)
-  };
-  logos.push(logo);
+  });
   updateAll();
 }
 
 function updateAll(){
   if(!logos.length) return;
-
-  const baseline = logos[0];                          // first added
+  const baseline = logos[0];
   const areaBase = baseline.w0 * baseline.h0;
   const bBase    = baseline.bright/100;
 
-  // weight-balance relative sizes
   logos.forEach((l,i)=>{
-    if(i===0){
-      l.relScale=1; l.preW=l.w0; l.preH=l.h0; return;
-    }
-    const scaleToH = baseline.h0 / l.h0;
-    const areaLogo = l.w0 * scaleToH * baseline.h0;
+    if(i===0){ l.relScale=1; l.preW=l.w0; l.preH=l.h0; return; }
+    const toH = baseline.h0 / l.h0;
+    const areaLogo = l.w0 * toH * baseline.h0;
     const s = Math.sqrt((1-bBase)*areaBase / ((1-l.bright/100)*areaLogo));
-    l.relScale = s * scaleToH;
+    l.relScale = s * toH;
     l.preW = l.w0 * l.relScale;
     l.preH = l.h0 * l.relScale;
   });
 
-  // global scale to max-height
   const maxPreH = Math.max(...logos.map(l=>l.preH));
   const maxH = +maxHeightInput.value || 40;
   const g = maxH / maxPreH;
@@ -119,14 +115,8 @@ function updateAll(){
     l.scalePct = l.finalH / l.h0 * 100;
   });
 
-  // stable sort: height desc, then id
-  const sorted = [...logos].sort((a,b)=>{
-    const d = b.finalH - a.finalH;
-    return d?d:a.id-b.id;
-  });
-
-  renderTable(sorted);
-  renderWall(sorted);
+  const sorted=[...logos].sort((a,b)=> b.finalH-a.finalH || a.id-b.id);
+  renderTable(sorted); renderWall(sorted);
 }
 
 function renderTable(list){
@@ -160,7 +150,7 @@ function renderWall(list){
 zone.addEventListener('drop',e=>loadFiles(e.dataTransfer.files));
 zone.addEventListener('click',()=>{
   const inp=document.createElement('input');
-  inp.type='file';inp.multiple=true;inp.accept='image/*';
+  inp.type='file'; inp.multiple=true; inp.accept='image/*';
   inp.onchange=()=>loadFiles(inp.files);
   inp.click();
 });
@@ -169,6 +159,7 @@ zone.addEventListener('click',()=>{
 maxHeightInput.addEventListener('input',updateAll);
 gapInput.addEventListener('input',e=>{
   document.documentElement.style.setProperty('--wall-gap',`${e.target.value||0}px`);
+  updateAll();
 });
 </script>
 </body>
