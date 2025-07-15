@@ -4,41 +4,55 @@
 <meta charset="utf-8">
 <title>Logo Weight Balancer</title>
 <style>
-  :root { --wall-gap:40px; }
-  body  {font-family:sans-serif;font-size:14px;margin:auto;padding:1.5rem;}
-  h2    {margin-top:0}
+  *     {font-family:sans-serif;font-size:14px;box-sizing:border-box;}
+  :root {--wall-gap:40px;}
+  body  {margin:0 auto;padding:1.5rem;}   /* max-width removed */
 
-  #zone {border:2px dashed #999;border-radius:.5rem;text-align:center;
+  /* drop-zone */
+  #zone {border:2px dashed #999;border-radius:.5rem;
          height:100px;display:flex;align-items:center;justify-content:center;
-         transition:.2s border-color}
+         transition:border-color .2s;margin-bottom:1rem;}
   #zone.hover{border-color:#007bff}
 
-  label {display:inline-block;margin:.6rem .8rem .2rem 0}
-  input {padding:.25rem;width:5rem;font-size:14px}
+  /* controls */
+  .controls{display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin-bottom:1rem;}
+  .controls label{display:flex;align-items:center;gap:.4rem;}
+  .controls input{width:5rem;padding:.2rem;}
+  .controls button{padding:.2rem .6rem;cursor:pointer;}
 
+  /* wall preview */
   .wall {display:flex;flex-wrap:wrap;justify-content:center;align-items:center;
-         gap:var(--wall-gap);padding:calc(var(--wall-gap)*2)}
+         gap:var(--wall-gap);padding:calc(var(--wall-gap)*2);}
   .wall img{display:block}
 
-  table  {width:100%;border-collapse:collapse;margin-top:1.5rem}
-  th,td  {border-bottom:1px solid #ddd;padding:.4rem .5rem;text-align:left;vertical-align:middle;font-size:14px}
-  th     {background:#fafafa}
+  /* results table */
+  table  {width:100%;border-collapse:collapse;margin-top:1rem;}
+  th,td  {border-bottom:1px solid #ddd;padding:.4rem .5rem;text-align:left;vertical-align:middle;}
+  th     {background:#fafafa;}
+  tr.highlight{background:#f5f5f5;}
 </style>
 </head>
 <body>
-<h2>Logo Weight Balancer</h2>
 
-<div id="zone">
-  <span>Drop logos here or click to choose</span>
+<h2 style="margin-top:0;">Logo Weight Balancer</h2>
+
+<div id="zone"><span>Drop logos here or click to choose</span></div>
+
+<div class="controls">
+  <label>Max Height (px)
+    <input id="maxHeightInput" type="number" value="40" min="1">
+  </label>
+
+  <label>Gap (px)
+    <input id="gapInput" type="number" value="40" min="0">
+  </label>
+
+  <span>Sort&nbsp;by:</span>
+  <button data-sort="added">Added</button>
+  <button data-sort="filename">Filename</button>
+  <button data-sort="height">Height</button>
+  <button data-sort="random">Random</button>
 </div>
-
-<label>Max&nbsp;Height&nbsp;(px)
-  <input id="maxHeightInput" type="number" value="40" min="1">
-</label>
-
-<label>Gap&nbsp;(px)
-  <input id="gapInput" type="number" value="40" min="0">
-</label>
 
 <div id="wall" class="wall"></div>
 
@@ -46,121 +60,104 @@
   <thead>
     <tr>
       <th>Logo</th>
-      <th>Brightness&nbsp;%</th>
-      <th>Scale&nbsp;%</th>
-      <th>Final&nbsp;W&nbsp;×&nbsp;H&nbsp;(px)</th>
+      <th>Filename</th>
+      <th>Brightness %</th>
+      <th>Scale %</th>
+      <th>Final W × H (px)</th>
     </tr>
   </thead>
   <tbody></tbody>
 </table>
 
 <script>
-let idCounter = 0;
-const logos = [];                            // first one is baseline
-const zone  = document.getElementById('zone');
+let idCounter=0, logos=[], sortMode='height';
+const zone=document.getElementById('zone');
 
-function avgBrightness(img, downToH=100){
-  const s = Math.min(downToH/img.height,1);
-  const w = Math.round(img.width*s), h = Math.round(img.height*s);
-  const c = Object.assign(document.createElement('canvas'),{width:w,height:h});
-  const ctx=c.getContext('2d'); ctx.drawImage(img,0,0,w,h);
-  const {data}=ctx.getImageData(0,0,w,h);
-  let sum=0;
-  for(let i=0;i<data.length;i+=4)
-    sum += (data[i+3]===0 ? 255*3 : data[i]+data[i+1]+data[i+2]);
+/* --- drag-and-drop / click --- */
+['dragenter','dragover'].forEach(e=>zone.addEventListener(e,ev=>{ev.preventDefault();zone.classList.add('hover');}));
+['dragleave','drop'].forEach(e=>zone.addEventListener(e,ev=>{ev.preventDefault();zone.classList.remove('hover');}));
+zone.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
+zone.addEventListener('click',()=>{
+  const inp=document.createElement('input');
+  inp.type='file';inp.multiple=true;inp.accept='image/*,image/svg+xml';
+  inp.onchange=()=>handleFiles(inp.files);
+  inp.click();
+});
+
+function handleFiles(list){[...list].forEach(f=>{
+  if(!f.type.startsWith('image/'))return;
+  const img=new Image();
+  img.onload=()=>addLogo(img,f.name);
+  img.src=URL.createObjectURL(f);
+});}
+
+/* --- helpers --- */
+function avgBrightness(img,dH=100){
+  const s=Math.min(dH/img.height,1),
+        w=Math.round(img.width*s),h=Math.round(img.height*s),
+        c=Object.assign(document.createElement('canvas'),{width:w,height:h}),
+        ctx=c.getContext('2d');
+  ctx.drawImage(img,0,0,w,h);
+  const d=ctx.getImageData(0,0,w,h).data;
+  let sum=0;for(let i=0;i<d.length;i+=4)sum+=(d[i+3]===0?765:d[i]+d[i+1]+d[i+2]);
   return (sum/(3*w*h)/255)*100;
 }
 
-function loadFiles(files){
-  [...files].forEach(file=>{
-    if(!file.type.startsWith('image/')) return;
-    const img=new Image();
-    img.onload=()=>addLogo(img,file.name);
-    img.src=URL.createObjectURL(file);
-  });
-}
-
 function addLogo(img,name){
-  logos.push({
-    id:idCounter++, name, src:img.src,
-    w0:img.width, h0:img.height,
-    bright:avgBrightness(img)
-  });
+  logos.push({id:idCounter++,name,src:img.src,w0:img.width,h0:img.height,bright:avgBrightness(img)});
   updateAll();
 }
 
+/* --- sizing & rendering --- */
 function updateAll(){
-  if(!logos.length) return;
-  const baseline = logos[0];
-  const areaBase = baseline.w0 * baseline.h0;
-  const bBase    = baseline.bright/100;
-
+  if(!logos.length)return;
+  const base=logos[0],areaBase=base.w0*base.h0,bBase=base.bright/100;
   logos.forEach((l,i)=>{
-    if(i===0){ l.relScale=1; l.preW=l.w0; l.preH=l.h0; return; }
-    const toH = baseline.h0 / l.h0;
-    const areaLogo = l.w0 * toH * baseline.h0;
-    const s = Math.sqrt((1-bBase)*areaBase / ((1-l.bright/100)*areaLogo));
-    l.relScale = s * toH;
-    l.preW = l.w0 * l.relScale;
-    l.preH = l.h0 * l.relScale;
+    if(i===0){l.relScale=1;l.preW=l.w0;l.preH=l.h0;return;}
+    const toH=base.h0/l.h0,areaLogo=l.w0*toH*base.h0,
+          s=Math.sqrt((1-bBase)*areaBase/((1-l.bright/100)*areaLogo));
+    l.relScale=s*toH;l.preW=l.w0*l.relScale;l.preH=l.h0*l.relScale;
   });
-
-  const maxPreH = Math.max(...logos.map(l=>l.preH));
-  const maxH = +maxHeightInput.value || 40;
-  const g = maxH / maxPreH;
-
-  logos.forEach(l=>{
-    l.finalW = Math.round(l.preW * g);
-    l.finalH = (l.preH * g).toFixed(1);
-    l.scalePct = l.finalH / l.h0 * 100;
-  });
-
-  const sorted=[...logos].sort((a,b)=> b.finalH-a.finalH || a.id-b.id);
-  renderTable(sorted); renderWall(sorted);
+  const g=(+maxHeightInput.value||40)/Math.max(...logos.map(l=>l.preH));
+  logos.forEach(l=>{l.finalW=Math.round(l.preW*g);l.finalH=+(l.preH*g).toFixed(1);l.scalePct=l.finalH/l.h0*100;});
+  const list=sort([...logos]);
+  drawWall(list);drawTable(list);
 }
 
-function renderTable(list){
-  const tbody=document.querySelector('#results tbody');
-  tbody.innerHTML='';
+function sort(arr){
+  switch(sortMode){
+    case'added':return arr.sort((a,b)=>a.id-b.id);
+    case'filename':return arr.sort((a,b)=>a.name.localeCompare(b.name,'en',{sensitivity:'base'}));
+    case'height':return arr.sort((a,b)=>b.finalH-a.finalH||a.id-b.id);
+    case'random':return arr.sort(()=>Math.random()-.5);
+  }return arr;
+}
+
+function drawWall(list){
+  const wall=document.getElementById('wall');wall.innerHTML='';
+  list.forEach(l=>{const img=document.createElement('img');img.src=l.src;img.style.width=`${l.finalW}px`;img.style.height=`${l.finalH}px`;wall.appendChild(img);});
+}
+function drawTable(list){
+  const tbody=document.querySelector('#results tbody');tbody.innerHTML='';
+  const widest=Math.max(...list.map(l=>l.finalW)),tallest=Math.max(...list.map(l=>l.finalH));
   list.forEach(l=>{
-    const r=tbody.insertRow();
-    r.innerHTML=`<td><img src="${l.src}" style="height:${l.finalH}px;width:${l.finalW}px"></td>
-                 <td>${l.bright.toFixed(2)}</td>
-                 <td>${l.scalePct.toFixed(1)}</td>
-                 <td>${l.finalW} × ${l.finalH}</td>`;
+    const tr=tbody.insertRow();if(l.finalW===widest||l.finalH===tallest)tr.classList.add('highlight');
+    tr.innerHTML=`<td><img src="${l.src}" style="height:${l.finalH}px;width:${l.finalW}px"></td>
+                  <td>${l.name}</td>
+                  <td>${l.bright.toFixed(2)}</td>
+                  <td>${l.scalePct.toFixed(1)}</td>
+                  <td>${l.finalW===widest?'<strong>'+l.finalW+'</strong>':l.finalW} × ${l.finalH===tallest?'<strong>'+l.finalH+'</strong>':l.finalH}</td>`;
   });
   document.getElementById('results').style.display='';
 }
 
-function renderWall(list){
-  const wall=document.getElementById('wall');
-  wall.innerHTML='';
-  list.forEach(l=>{
-    const img=document.createElement('img');
-    img.src=l.src;
-    img.style.height=`${l.finalH}px`;
-    img.style.width =`${l.finalW}px`;
-    wall.appendChild(img);
-  });
-}
-
-/* drag-and-drop + click */
-['dragenter','dragover'].forEach(e=>zone.addEventListener(e,ev=>{ev.preventDefault();zone.classList.add('hover');}));
-['dragleave','drop'].forEach(e=>zone.addEventListener(e,ev=>{ev.preventDefault();zone.classList.remove('hover');}));
-zone.addEventListener('drop',e=>loadFiles(e.dataTransfer.files));
-zone.addEventListener('click',()=>{
-  const inp=document.createElement('input');
-  inp.type='file'; inp.multiple=true; inp.accept='image/*';
-  inp.onchange=()=>loadFiles(inp.files);
-  inp.click();
-});
-
-/* inputs */
+/* --- controls --- */
 maxHeightInput.addEventListener('input',updateAll);
 gapInput.addEventListener('input',e=>{
   document.documentElement.style.setProperty('--wall-gap',`${e.target.value||0}px`);
   updateAll();
 });
+document.querySelectorAll('[data-sort]').forEach(b=>b.addEventListener('click',()=>{sortMode=b.dataset.sort;updateAll();}));
 </script>
 </body>
 </html>
