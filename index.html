@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Logo Weight Balancer</title>
+<style>
+  body      {font-family:sans-serif;max-width:42rem;margin:auto;padding:1.5rem;}
+  h2        {margin-top:0}
+  .dropzone {border:2px dashed #999;border-radius:.5rem;
+             text-align:center;padding:2rem;margin:1.25rem 0;min-height:120px;
+             transition:.2s border-color}
+  .dropzone.hover{border-color:#007bff}
+  table     {width:100%;border-collapse:collapse;margin-top:1.5rem}
+  th,td     {border-bottom:1px solid #ddd;padding:.4rem .5rem;text-align:left}
+  th        {background:#fafafa}
+  #baseline-info{margin:.5rem 0 1rem;font-weight:bold}
+</style>
+</head>
+<body>
+<h2>Logo Weight Balancer <small>(drag images in)</small></h2>
+
+<div id="baseline-zone" class="dropzone">
+  <strong>Drop baseline (darkest) logo here</strong><br>
+  <em>…or click and choose</em>
+</div>
+<p id="baseline-info">Baseline not set.</p>
+
+<div id="other-zone" class="dropzone">
+  <strong>Drop other logo(s) here</strong><br>
+  <em>…or click and choose</em>
+</div>
+
+<table id="results" style="display:none">
+  <thead>
+    <tr><th>File</th><th>Brightness (%)</th><th>Scale (%)</th><th>Final W × H (px)</th></tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<script>
+let baseline = null;   // will hold {w, h, brightness}
+
+////////////////////////////
+// helpers
+function averageBrightness(img, scale = 1) {
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = Object.assign(document.createElement('canvas'), {width: w, height: h});
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  const {data} = ctx.getImageData(0, 0, w, h);
+
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha === 0) { sum += 255 * 3; }               // treat transparent as white
+    else sum += data[i] + data[i + 1] + data[i + 2];
+  }
+  const avg = sum / (3 * w * h);                       // 0-255 scale
+  return (avg / 255) * 100;                            // percentage 0-100
+}
+
+function handleFiles(files, isBaseline) {
+  [...files].forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+
+    const img = new Image();
+    img.onload = () => isBaseline ? setBaseline(img, file.name)
+                                  : processLogo(img, file.name);
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+////////////////////////////
+// baseline
+function setBaseline(img, name) {
+  baseline = {
+    w: img.width,
+    h: img.height,
+    brightness: averageBrightness(img)
+  };
+  document.getElementById('baseline-info').textContent =
+    `Baseline: ${name} – ${baseline.w} × ${baseline.h}px, brightness ${(baseline.brightness).toFixed(2)} %`;
+
+  // wipe previous results
+  const tbody = document.querySelector('#results tbody');
+  tbody.innerHTML = '';
+  document.getElementById('results').style.display = 'none';
+}
+
+////////////////////////////
+// other logos
+function processLogo(img, name) {
+  if (!baseline) { alert('Drop a baseline logo first.'); return; }
+
+  // scale to baseline height for the weight math
+  const scaleToHeight = baseline.h / img.height;
+  const scaledW = img.width * scaleToHeight;
+  const scaledH = baseline.h;
+  const brightness = averageBrightness(img, scaleToHeight);
+
+  const areaBase = baseline.w * baseline.h;
+  const areaLogo = scaledW * scaledH;
+
+  const s = Math.sqrt( (1 - baseline.brightness/100) * areaBase /
+                       ( (1 - brightness/100) * areaLogo ) );
+
+  const finalW = Math.round(scaledW * s);
+  const finalH = (scaledH * s).toFixed(1);
+
+  addRow(name, brightness, s, finalW, finalH);
+}
+
+function addRow(name, bright, scale, w, h) {
+  const tbody = document.querySelector('#results tbody');
+  const row = tbody.insertRow();
+  row.innerHTML =
+    `<td>${name}</td><td>${bright.toFixed(2)}</td><td>${(scale*100).toFixed(1)}</td><td>${w} × ${h}</td>`;
+  document.getElementById('results').style.display = '';
+}
+
+////////////////////////////
+// drag-and-drop plumbing
+function setupDropzone(id, isBaseline) {
+  const zone = document.getElementById(id);
+
+  ['dragenter','dragover'].forEach(evt =>
+    zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.add('hover'); })
+  );
+  ['dragleave','drop'].forEach(evt =>
+    zone.addEventListener(evt, e => { e.preventDefault(); zone.classList.remove('hover'); })
+  );
+  zone.addEventListener('drop', e => handleFiles(e.dataTransfer.files, isBaseline));
+  // click-to-open fallback
+  zone.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    if (!isBaseline) input.multiple = true;
+    input.accept = 'image/*';
+    input.onchange = () => handleFiles(input.files, isBaseline);
+    input.click();
+  });
+}
+setupDropzone('baseline-zone', true);
+setupDropzone('other-zone',     false);
+</script>
+</body>
+</html>
