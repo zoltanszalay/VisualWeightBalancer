@@ -1,12 +1,12 @@
 /* ───────── palette (pure black / white + alpha) ───────── */
-:root{ --ink:0,0,0; --wall-gap:40px; }
-body.dark{ --ink:255,255,255; }
+:root{ --ink:0,0,0; --wall-gap:40px; --dark-multiplier:1;}
+body.dark{ --ink:255,255,255; --dark-multiplier:2.5;}
 
 *{box-sizing:border-box;font-family:sans-serif;font-size:14px;}
 
 body{
   margin:0;
-  padding:1.5rem;
+  padding:24px;
   background:#fff;
   color:rgb(var(--ink));
 }
@@ -17,14 +17,14 @@ body.dark{background:#111;}
   display:flex;
   flex-wrap:wrap;
   align-items:center;
-  gap:.8rem;
-  margin:1rem 0;
+  gap:16px;
+  margin:16px 0;
 }
 
 .controls label{
   display:flex;
   align-items:center;
-  gap:.4rem;
+  gap:4px;
   user-select:none;
 }
 
@@ -54,11 +54,49 @@ body.dark{background:#111;}
   border-radius:4px;
 }
 
+/* Remove default color input background in WebKit browsers */
+.controls input[type=color] {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none; /* Remove any background */
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+/* Remove the inner white/gray square in WebKit browsers */
+.controls input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* Add a 1px border to the color swatch in WebKit browsers */
+.controls input[type="color"]::-webkit-color-swatch {
+  border: 1px solid rgba(var(--ink), 0.5);
+  border-radius: 50%;
+}
+
+/* Remove border in Firefox */
+.controls input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: 4px;
+}
+
+/* Add a 1px border to the color swatch in Firefox */
+.controls input[type="color"]::-moz-color-swatch {
+  border: 1px solid rgba(var(--ink), 0.5);
+  border-radius: 50%;
+}
+
 /* buttons */
 .controls button{
   padding:0 0.8rem;
-  background:rgba(var(--ink),.1);     /* stronger bg */
-  border:none;                         /* no border */
+  background:rgba(var(--ink),calc(.05*var(--dark-multiplier)));
+  border:none;
   color:inherit;
   cursor:pointer;
 }
@@ -66,8 +104,13 @@ body.dark{background:#111;}
   background:rgba(var(--ink),.2);
 }
 
-.actions{margin-left:auto;display:flex;gap:.6rem;}
-.sortCaps{width:.8rem;display:inline-block;}
+.actions{margin-left:auto;display:flex;gap:8px;}
+.sortCaps{width:8px;display:inline-block;}
+
+.sort-group {
+  display: flex;
+  gap: 2px; /* Tighter gap between sort buttons */
+}
 
 /* ───────── wall ───────── */
 .wall{
@@ -89,15 +132,16 @@ table{
 }
 
 th,td{
-  border-bottom:1px solid rgba(var(--ink),.18);
-  padding:.4rem .5rem;
+  border-bottom:1px solid rgba(var(--ink),.1);
+  padding:0;
   vertical-align:middle;
   text-align:left;
   height:var(--row-height,auto);       /* uniform row height set via JS */
 }
 
 th{
-  background:rgba(var(--ink),.05);
+  text-transform:uppercase;
+  font-size: 12px;
 }
 
 /* ───────── drop-zone ───────── */

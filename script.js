@@ -118,7 +118,7 @@ function refresh(){
   });
 
   /* uniform row height */
-  document.documentElement.style.setProperty('--row-height',`${+maxHInput.value||40}px`);
+  document.documentElement.style.setProperty('--row-height',`${+maxHInput.value+8||40}px`);
 
   render();
 }
@@ -149,9 +149,10 @@ function render(){
   const tallest = Math.max(...list.map(l=>l.fH));
 
   list.forEach(l=>{
-    const widthPart  = l.fW===widest  ? `<strong>${l.fW} Widest</strong>`  : l.fW;
+    const widthPart  = l.fW===widest  ? `<strong>${l.fW}</strong>`  : l.fW;
     const heightPart = l.fH===tallest ? `<strong>${l.fH} Tallest</strong>` : l.fH;
-    const sizeCell   = `${widthPart} × ${heightPart}`;
+    const appendIfWidest = l.fW===widest  ? `<strong> Widest</strong>`  : "";
+    const sizeCell   = `${widthPart} × ${heightPart} ${appendIfWidest}`;
 
     const r=tbody.insertRow();
     r.innerHTML=`
