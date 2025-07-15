@@ -3,10 +3,9 @@
 Balance a batch of brand marks so they *feel* the same visual weight—no more “one logo looks louder than the others”.  
 Drag a pile of PNG/JPG/SVG files into the browser, tweak a couple of knobs, and export perfectly sized assets plus a demo snippet.
 
-## ✨ Features
-
-- Drag-and-drop (or click-to-pick) unlimited logo files
-- **Visual-weight math**   ·  `weight = ink-coverage × area`<br>Dark-mode switch ≙ ¯inverse ink logic
+- Drag-and-drop (or click-to-pick) logo files
+- **Visual-weight math**   ·  `weight = ink-coverage × area`
+- Dark-mode switch for inverse ink logic
 - Automatic **light ↔ dark theme** (first logo decides—override anytime)
 - Live wall preview with adjustable **gap** and **max height**
 - Sort by Added · Filename · Height · Width · Random
